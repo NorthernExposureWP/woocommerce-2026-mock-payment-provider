@@ -1,0 +1,8 @@
+# Runtime payment data
+/storage/*
+
+# Keep storage directory in Git
+!/storage/.gitkeep
+
+# IDE
+.idea/

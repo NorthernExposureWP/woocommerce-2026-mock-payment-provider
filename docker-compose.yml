@@ -1,0 +1,14 @@
+services:
+  provider:
+    environment:
+      APP_BASE_URL: http://localhost:8081
+    build: .
+    container_name: mock-payment-provider
+    ports:
+      - "8081:80"
+    volumes:
+      - ./public/index.php:/var/www/html/index.php:ro
+      - ./public/.htaccess:/var/www/html/.htaccess:ro
+      - ./src:/var/www/html/src:ro
+      - ./storage:/var/www/storage
+      - ./test-storage.php:/var/www/html/test-storage.php:ro
