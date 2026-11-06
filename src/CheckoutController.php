@@ -10,6 +10,7 @@ class CheckoutController
 
     /**
      * Handles GET /checkout/{payment_id}. Read-only: nothing is written to storage.
+     * The pay/decline forms are shown only while the payment is pending.
      *
      * @return array{0: int, 1: string} HTTP status code and HTML body
      */
@@ -33,10 +34,6 @@ class CheckoutController
                 <dt>Amount:</dt><dd>%s</dd>
                 <dt>Status:</dt><dd>%s</dd>
             </dl>
-            <div class="actions">
-                <button type="button" class="pay">Pay successfully</button>
-                <button type="button" class="decline">Decline payment</button>
-            </div>
             HTML,
             $this->e($paymentId),
             $this->e($payment['order_id'] ?? ''),
@@ -44,7 +41,87 @@ class CheckoutController
             $this->e(ucfirst((string) ($payment['status'] ?? '')))
         );
 
+        if (($payment['status'] ?? '') === 'pending') {
+            $content .= $this->actionForms($paymentId);
+        }
+
         return [200, $this->page($content)];
+    }
+
+    /**
+     * Handles POST /checkout/{payment_id}/pay: pending => succeeded.
+     *
+     * @return array{0: int, 1: string} HTTP status code and HTML body
+     */
+    public function pay(string $paymentId): array
+    {
+        return $this->process($paymentId, 'succeeded');
+    }
+
+    /**
+     * Handles POST /checkout/{payment_id}/decline: pending => declined.
+     *
+     * @return array{0: int, 1: string} HTTP status code and HTML body
+     */
+    public function decline(string $paymentId): array
+    {
+        return $this->process($paymentId, 'declined');
+    }
+
+    /**
+     * Moves a pending payment to a final status. Any other current status
+     * (succeeded, declined, ...) is rejected with 409 and storage is not touched.
+     *
+     * @return array{0: int, 1: string} HTTP status code and HTML body
+     */
+    private function process(string $paymentId, string $newStatus): array
+    {
+        $payments = $this->storage->read();
+        $payment  = $payments[$paymentId] ?? null;
+
+        if (!is_array($payment)) {
+            return [404, $this->page('<p class="error">Payment not found</p>')];
+        }
+
+        $currentStatus = (string) ($payment['status'] ?? '');
+        if ($currentStatus !== 'pending') {
+            return [409, $this->page(sprintf(
+                '<p class="error">Payment %s has already been processed (current status: %s) and cannot be changed.</p>',
+                $this->e($paymentId),
+                $this->e(ucfirst($currentStatus))
+            ))];
+        }
+
+        $payments[$paymentId]['status'] = $newStatus;
+        $this->storage->write($payments);
+
+        return [200, $this->page(sprintf(
+            <<<'HTML'
+            <h2>Payment Result</h2>
+            <dl>
+                <dt>Payment ID:</dt><dd>%s</dd>
+                <dt>Status:</dt><dd>%s</dd>
+            </dl>
+            HTML,
+            $this->e($paymentId),
+            $this->e(ucfirst($newStatus))
+        ))];
+    }
+
+    private function actionForms(string $paymentId): string
+    {
+        $base = $this->e('/checkout/' . rawurlencode($paymentId));
+
+        return <<<HTML
+        <div class="actions">
+            <form method="post" action="{$base}/pay">
+                <button type="submit" class="pay">Pay successfully</button>
+            </form>
+            <form method="post" action="{$base}/decline">
+                <button type="submit" class="decline">Decline payment</button>
+            </form>
+        </div>
+        HTML;
     }
 
     /**

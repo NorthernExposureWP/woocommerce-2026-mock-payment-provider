@@ -69,6 +69,14 @@ $pageRoutes = [
         'GET' => static fn(string $paymentId): array => createCheckoutController()
             ->show($paymentId),
     ],
+    '#^/checkout/([^/]+)/pay$#' => [
+        'POST' => static fn(string $paymentId): array => createCheckoutController()
+            ->pay($paymentId),
+    ],
+    '#^/checkout/([^/]+)/decline$#' => [
+        'POST' => static fn(string $paymentId): array => createCheckoutController()
+            ->decline($paymentId),
+    ],
 ];
 
 try {
