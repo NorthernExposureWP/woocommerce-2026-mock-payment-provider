@@ -21,6 +21,14 @@ function respond(int $status, array $body, array $headers = []): never
     exit;
 }
 
+function respondHtml(int $status, string $html): never
+{
+    http_response_code($status);
+    header('Content-Type: text/html; charset=utf-8');
+    echo $html;
+    exit;
+}
+
 function createPaymentController(): PaymentController
 {
     $storageDir = '/var/www/storage';
@@ -36,6 +44,16 @@ function createPaymentController(): PaymentController
     return new PaymentController(new PaymentStorage($storageDir . '/payments.json'), $baseUrl);
 }
 
+function createCheckoutController(): CheckoutController
+{
+    $storageDir = '/var/www/storage';
+    if (!is_dir($storageDir) && !mkdir($storageDir, 0775, true) && !is_dir($storageDir)) {
+        throw new RuntimeException("Cannot create storage directory {$storageDir}");
+    }
+
+    return new CheckoutController(new PaymentStorage($storageDir . '/payments.json'));
+}
+
 // path => [HTTP method => handler returning [status, body]]
 $routes = [
     '/api/payments' => [
@@ -44,9 +62,31 @@ $routes = [
     ],
 ];
 
+// HTML pages with URL parameters:
+// regex => [HTTP method => handler(string ...$params) returning [status, html]]
+$pageRoutes = [
+    '#^/checkout/([^/]+)$#' => [
+        'GET' => static fn(string $paymentId): array => createCheckoutController()
+            ->show($paymentId),
+    ],
+];
+
 try {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $path   = rtrim((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/') ?: '/';
+
+    foreach ($pageRoutes as $pattern => $handlers) {
+        if (preg_match($pattern, $path, $matches) !== 1) {
+            continue;
+        }
+
+        if (!isset($handlers[$method])) {
+            respond(405, ['error' => 'Method not allowed'], ['Allow' => implode(', ', array_keys($handlers))]);
+        }
+
+        [$status, $html] = $handlers[$method](...array_map('rawurldecode', array_slice($matches, 1)));
+        respondHtml($status, $html);
+    }
 
     if (!isset($routes[$path])) {
         respond(404, ['error' => 'Not found']);
