@@ -6,6 +6,8 @@ services:
     container_name: mock-payment-provider
     ports:
       - "8081:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./public/index.php:/var/www/html/index.php:ro
       - ./public/.htaccess:/var/www/html/.htaccess:ro

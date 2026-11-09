@@ -39,11 +39,12 @@ class PaymentController
         } while (isset($payments[$paymentId]));
 
         $payments[$paymentId] = [
-            'order_id'   => $fields['order_id'],
-            'amount'     => $fields['amount'],
-            'currency'   => $fields['currency'],
-            'status'     => 'pending',
-            'return_url' => $fields['return_url'],
+            'order_id'     => $fields['order_id'],
+            'amount'       => $fields['amount'],
+            'currency'     => $fields['currency'],
+            'status'       => 'pending',
+            'return_url'   => $fields['return_url'],
+            'callback_url' => $fields['callback_url'],
         ];
 
         $this->storage->write($payments);
@@ -85,15 +86,21 @@ class PaymentController
             $errors['return_url'] = 'required, must be a valid http or https URL';
         }
 
+        $callbackUrl = $data['callback_url'] ?? null;
+        if (!is_string($callbackUrl) || !$this->isHttpUrl($callbackUrl)) {
+            $errors['callback_url'] = 'required, must be a valid http or https URL';
+        }
+
         if ($errors !== []) {
             return [[], $errors];
         }
 
         return [[
-            'order_id'   => $orderId,
-            'amount'     => (string) $amount,
-            'currency'   => strtoupper($currency),
-            'return_url' => $returnUrl,
+            'order_id'     => $orderId,
+            'amount'       => (string) $amount,
+            'currency'     => strtoupper($currency),
+            'return_url'   => $returnUrl,
+            'callback_url' => $callbackUrl,
         ], []];
     }
 
