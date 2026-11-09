@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 class CheckoutController
 {
-    public function __construct(private readonly PaymentStorage $storage)
-    {
+    public function __construct(
+        private readonly PaymentStorage $storage,
+        private readonly CallbackSender $callbackSender = new CallbackSender()
+    ) {
     }
 
     /**
@@ -69,8 +71,8 @@ class CheckoutController
     }
 
     /**
-     * Moves a pending payment to a final status. Any other current status
-     * (succeeded, declined, ...) is rejected with 409 and storage is not touched.
+     * Moves a pending payment to a final status and notifies the merchant via its callback URL.
+     * Any other current status (succeeded, declined, ...) is rejected with 409 and storage is not touched.
      *
      * @return array{0: int, 1: string} HTTP status code and HTML body
      */
@@ -95,6 +97,8 @@ class CheckoutController
         $payments[$paymentId]['status'] = $newStatus;
         $this->storage->write($payments);
 
+        $this->sendCallback($paymentId, $payments[$paymentId]);
+
         return [200, $this->page(sprintf(
             <<<'HTML'
             <h2>Payment Result</h2>
@@ -106,6 +110,32 @@ class CheckoutController
             $this->e($paymentId),
             $this->e(ucfirst($newStatus))
         ))];
+    }
+
+    /**
+     * Notifies the merchant about the final status. The status is already saved at this point,
+     * so a failed callback is only logged and does not affect the customer's result page.
+     */
+    private function sendCallback(string $paymentId, array $payment): void
+    {
+        $url = (string) ($payment['callback_url'] ?? '');
+
+        if ($url === '') {
+            error_log(sprintf('Payment %s: no callback_url stored, callback not sent', $paymentId));
+            return;
+        }
+
+        try {
+            $this->callbackSender->send($url, [
+                'payment_id' => $paymentId,
+                'order_id'   => $payment['order_id'] ?? null,
+                'amount'     => $payment['amount'] ?? null,
+                'currency'   => $payment['currency'] ?? null,
+                'status'     => $payment['status'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            error_log(sprintf('Payment %s: callback to %s failed: %s', $paymentId, $url, $e->getMessage()));
+        }
     }
 
     private function actionForms(string $paymentId): string
