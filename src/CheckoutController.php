@@ -6,7 +6,7 @@ class CheckoutController
 {
     public function __construct(
         private readonly PaymentStorage $storage,
-        private readonly CallbackSender $callbackSender = new CallbackSender()
+        private readonly CallbackSender $callbackSender
     ) {
     }
 

@@ -2,6 +2,7 @@ services:
   provider:
     environment:
       APP_BASE_URL: http://localhost:8081
+      CALLBACK_SECRET: ${CALLBACK_SECRET:?CALLBACK_SECRET is not set}
     build: .
     container_name: mock-payment-provider
     ports:

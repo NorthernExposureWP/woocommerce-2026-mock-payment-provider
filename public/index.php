@@ -51,7 +51,15 @@ function createCheckoutController(): CheckoutController
         throw new RuntimeException("Cannot create storage directory {$storageDir}");
     }
 
-    return new CheckoutController(new PaymentStorage($storageDir . '/payments.json'));
+    $callbackSecret = getenv('CALLBACK_SECRET');
+    if ($callbackSecret === false || $callbackSecret === '') {
+        throw new RuntimeException('CALLBACK_SECRET is not configured');
+    }
+
+    return new CheckoutController(
+        new PaymentStorage($storageDir . '/payments.json'),
+        new CallbackSender($callbackSecret)
+    );
 }
 
 // path => [HTTP method => handler returning [status, body]]

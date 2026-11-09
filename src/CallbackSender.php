@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 /**
  * Sends a JSON POST request (a "callback") to the merchant's URL.
+ *
+ * Every request is signed so the merchant can verify that it comes from this provider:
+ * X-Payment-Signature = HMAC-SHA256("{X-Payment-Timestamp}.{raw body}", shared secret).
  */
 class CallbackSender
 {
     public function __construct(
+        private readonly string $secret,
         private readonly int $connectTimeout = 5,
         private readonly int $timeout = 10
     ) {
@@ -20,7 +24,9 @@ class CallbackSender
      */
     public function send(string $url, array $payload): void
     {
-        $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $body      = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $timestamp = (string) time();
+        $signature = hash_hmac('sha256', $timestamp . '.' . $body, $this->secret);
 
         $curl = curl_init($url);
         if ($curl === false) {
@@ -30,7 +36,12 @@ class CallbackSender
         curl_setopt_array($curl, [
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $body,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'X-Payment-Timestamp: ' . $timestamp,
+                'X-Payment-Signature: ' . $signature,
+            ],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
