@@ -21,9 +21,12 @@ function respond(int $status, array $body, array $headers = []): never
     exit;
 }
 
-function respondHtml(int $status, string $html): never
+function respondHtml(int $status, string $html, array $headers = []): never
 {
     http_response_code($status);
+    foreach ($headers as $name => $value) {
+        header($name . ': ' . $value);
+    }
     header('Content-Type: text/html; charset=utf-8');
     echo $html;
     exit;
@@ -100,8 +103,8 @@ try {
             respond(405, ['error' => 'Method not allowed'], ['Allow' => implode(', ', array_keys($handlers))]);
         }
 
-        [$status, $html] = $handlers[$method](...array_map('rawurldecode', array_slice($matches, 1)));
-        respondHtml($status, $html);
+        $result = $handlers[$method](...array_map('rawurldecode', array_slice($matches, 1)));
+        respondHtml($result[0], $result[1], $result[2] ?? []);
     }
 
     if (!isset($routes[$path])) {

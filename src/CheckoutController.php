@@ -53,7 +53,7 @@ class CheckoutController
     /**
      * Handles POST /checkout/{payment_id}/pay: pending => succeeded.
      *
-     * @return array{0: int, 1: string} HTTP status code and HTML body
+     * @return array{0: int, 1: string, 2?: array<string, string>} HTTP status code, body and optional headers
      */
     public function pay(string $paymentId): array
     {
@@ -63,7 +63,7 @@ class CheckoutController
     /**
      * Handles POST /checkout/{payment_id}/decline: pending => declined.
      *
-     * @return array{0: int, 1: string} HTTP status code and HTML body
+     * @return array{0: int, 1: string, 2?: array<string, string>} HTTP status code, body and optional headers
      */
     public function decline(string $paymentId): array
     {
@@ -71,10 +71,11 @@ class CheckoutController
     }
 
     /**
-     * Moves a pending payment to a final status and notifies the merchant via its callback URL.
+     * Moves a pending payment to a final status, notifies the merchant via its callback URL and
+     * redirects the customer back to the payment's return_url (303 See Other).
      * Any other current status (succeeded, declined, ...) is rejected with 409 and storage is not touched.
      *
-     * @return array{0: int, 1: string} HTTP status code and HTML body
+     * @return array{0: int, 1: string, 2?: array<string, string>} HTTP status code, body and optional headers
      */
     private function process(string $paymentId, string $newStatus): array
     {
@@ -98,6 +99,12 @@ class CheckoutController
         $this->storage->write($payments);
 
         $this->sendCallback($paymentId, $payments[$paymentId]);
+
+        // 303 See Other: the browser follows it with a GET request, so a reload cannot re-submit the form.
+        $returnUrl = (string) ($payment['return_url'] ?? '');
+        if ($returnUrl !== '') {
+            return [303, '', ['Location' => $returnUrl]];
+        }
 
         return [200, $this->page(sprintf(
             <<<'HTML'
